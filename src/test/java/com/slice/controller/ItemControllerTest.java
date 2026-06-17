@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -65,7 +66,7 @@ class ItemControllerTest {
     @BeforeEach
     void setUp() {
         sampleResponse = ItemResponse.builder()
-                .id(1L)
+                .id(Long.valueOf(1L))
                 .name("Laptop")
                 .description("High-performance laptop")
                 .price(BigDecimal.valueOf(1500.00))
@@ -96,7 +97,7 @@ class ItemControllerTest {
                     .andDo(print())
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.status").value("SUCCESS"))
-                    .andExpect(jsonPath("$.data.id").value(1))
+                    .andExpect(jsonPath("$.data.id").value(Optional.of(1)))
                     .andExpect(jsonPath("$.data.name").value("Laptop"));
         }
 
@@ -152,7 +153,7 @@ class ItemControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.status").value("SUCCESS"))
                     .andExpect(jsonPath("$.data.content[0].name").value("Laptop"))
-                    .andExpect(jsonPath("$.data.totalElements").value(1));
+                    .andExpect(jsonPath("$.data.totalElements").value(Optional.of(1)));
         }
     }
 
@@ -165,18 +166,18 @@ class ItemControllerTest {
         @Test
         @DisplayName("should return 200 with item when found")
         void shouldReturn200WhenFound() throws Exception {
-            when(itemService.getById(1L)).thenReturn(sampleResponse);
+            when(itemService.getById(Long.valueOf(1L))).thenReturn(sampleResponse);
 
             mockMvc.perform(get("/api/v1/items/1"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.data.id").value(1))
+                    .andExpect(jsonPath("$.data.id").value(Optional.of(1)))
                     .andExpect(jsonPath("$.data.name").value("Laptop"));
         }
 
         @Test
         @DisplayName("should return 404 when item not found")
         void shouldReturn404WhenNotFound() throws Exception {
-            when(itemService.getById(99L))
+            when(itemService.getById(Long.valueOf(99L)))
                     .thenThrow(new ResourceNotFoundException("Item not found with id: 99"));
 
             mockMvc.perform(get("/api/v1/items/99"))
@@ -201,12 +202,12 @@ class ItemControllerTest {
                     .build();
 
             ItemResponse updated = ItemResponse.builder()
-                    .id(1L).name("Gaming Laptop")
+                    .id(Long.valueOf(1L)).name("Gaming Laptop")
                     .price(BigDecimal.valueOf(2000.00))
                     .status(ItemStatus.ACTIVE)
                     .build();
 
-            when(itemService.update(eq(1L), any(UpdateItemRequest.class))).thenReturn(updated);
+            when(itemService.update(Long.valueOf(eq(1L)), any(UpdateItemRequest.class))).thenReturn(updated);
 
             mockMvc.perform(put("/api/v1/items/1")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -225,7 +226,7 @@ class ItemControllerTest {
         @Test
         @DisplayName("should return 200 on successful delete")
         void shouldReturn200OnDelete() throws Exception {
-            doNothing().when(itemService).delete(1L);
+            doNothing().when(itemService).delete(Long.valueOf(1L));
 
             mockMvc.perform(delete("/api/v1/items/1"))
                     .andExpect(status().isOk())
@@ -236,7 +237,7 @@ class ItemControllerTest {
         @DisplayName("should return 404 when item to delete not found")
         void shouldReturn404WhenItemNotFound() throws Exception {
             doThrow(new ResourceNotFoundException("Item not found with id: 99"))
-                    .when(itemService).delete(99L);
+                    .when(itemService).delete(Long.valueOf(99L));
 
             mockMvc.perform(delete("/api/v1/items/99"))
                     .andExpect(status().isNotFound())
