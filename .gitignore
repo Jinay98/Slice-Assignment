@@ -1,0 +1,24 @@
+# Spring Boot - Interview Boilerplate
+
+IDEA_WORKSPACE_FILE
+*.iws
+.idea/
+*.iml
+*.ipr
+
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**
+!**/src/test/**
+
+*.log
+
+application-local.properties
+application-secret.properties
+
+*.class
+*.jar
+!target/*.jar
+
+.DS_Store
+.env
