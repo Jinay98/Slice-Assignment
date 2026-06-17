@@ -12,7 +12,7 @@ Built with Java 17, Spring Boot 3.2, MySQL, Lombok, and Mockito.
 cd /Users/jinay-parekh/Dream11/slice-interview-prep
 
 # 2. Ensure MySQL is running with root/root
-#    (DB 'slice_interview_db' will be auto-created on first run)
+#    (DB 'slice_db' will be auto-created on first run)
 
 # 3. Start the application
 mvn spring-boot:run
