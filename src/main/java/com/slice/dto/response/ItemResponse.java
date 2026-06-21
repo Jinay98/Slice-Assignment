@@ -15,7 +15,6 @@ import java.time.LocalDateTime;
  *  - Allows cherry-picking which fields to expose.
  */
 @Getter
-@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder

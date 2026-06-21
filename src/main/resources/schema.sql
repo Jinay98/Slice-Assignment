@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS items (
     name        VARCHAR(255)    NOT NULL,
     description VARCHAR(1000),
     price       DECIMAL(10, 2),
-    status ENUM('active', 'inactive', 'deleted'),
+    status ENUM('ACTIVE', 'INACTIVE', 'DELETED'),
     version     BIGINT          NOT NULL DEFAULT 0,  -- optimistic lock column
     created_at  DATETIME(6),
     updated_at  DATETIME(6),

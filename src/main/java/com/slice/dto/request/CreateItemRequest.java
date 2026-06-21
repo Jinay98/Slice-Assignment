@@ -1,6 +1,7 @@
 package com.slice.dto.request;
 
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.*;
@@ -10,13 +11,8 @@ import java.math.BigDecimal;
 /**
  * Request DTO for creating a new Item.
  *
- * Uses Bean Validation annotations:
- *  @NotBlank   — field must not be null or blank string
- *  @Size       — min/max length
- *  @DecimalMin — numeric lower bound
- *
- * INTERVIEW TIP: Design DTOs to be strict about inputs.
- * Never let invalid data reach the service layer.
+ * Bean Validation ensures invalid data never reaches the service layer.
+ * Validation errors are mapped to HTTP 400 by {@link com.slice.exception.GlobalExceptionHandler}.
  */
 @Getter
 @Setter
@@ -33,5 +29,6 @@ public class CreateItemRequest {
     private String description;
 
     @DecimalMin(value = "0.01", message = "Price must be greater than 0")
+    @Digits(integer = 8, fraction = 2, message = "Price must have at most 8 integer digits and 2 decimal places")
     private BigDecimal price;
 }

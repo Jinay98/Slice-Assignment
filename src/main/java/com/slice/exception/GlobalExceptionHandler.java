@@ -3,8 +3,10 @@ package com.slice.exception;
 import com.slice.dto.response.ApiResponse;
 import com.slice.util.AppConstants;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -16,19 +18,17 @@ import java.util.Map;
 /**
  * Centralized exception handler for all REST controllers.
  *
- * Maps each exception type to the appropriate HTTP status code.
- * All errors use the standard ApiResponse envelope so clients
- * have a consistent shape to handle.
- *
- * ┌─────────────────────────────────┬────────────────────────────┐
- * │  Exception                      │  HTTP Status               │
- * ├─────────────────────────────────┼────────────────────────────┤
- * │  ResourceNotFoundException      │  404 NOT FOUND             │
- * │  DuplicateResourceException     │  409 CONFLICT              │
- * │  BusinessException              │  422 UNPROCESSABLE ENTITY  │
- * │  MethodArgumentNotValidException│  400 BAD REQUEST           │
- * │  Exception (catch-all)          │  500 INTERNAL SERVER ERROR │
- * └─────────────────────────────────┴────────────────────────────┘
+ * ┌──────────────────────────────────────────┬────────────────────────────┐
+ * │  Exception                               │  HTTP Status               │
+ * ├──────────────────────────────────────────┼────────────────────────────┤
+ * │  ResourceNotFoundException               │  404 NOT FOUND             │
+ * │  DuplicateResourceException              │  409 CONFLICT              │
+ * │  ObjectOptimisticLockingFailureException  │  409 CONFLICT              │
+ * │  BusinessException                       │  422 UNPROCESSABLE ENTITY  │
+ * │  MethodArgumentNotValidException         │  400 BAD REQUEST           │
+ * │  DataIntegrityViolationException         │  409 CONFLICT              │
+ * │  Exception (catch-all)                   │  500 INTERNAL SERVER ERROR │
+ * └──────────────────────────────────────────┴────────────────────────────┘
  */
 @RestControllerAdvice
 @Slf4j
@@ -48,6 +48,22 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ApiResponse<Void>> handleOptimisticLock(ObjectOptimisticLockingFailureException ex) {
+        log.warn("Optimistic lock conflict: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("Resource was modified by another request. Please retry."));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(DataIntegrityViolationException ex) {
+        log.warn("Data integrity violation: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("A resource with the same unique value already exists."));
     }
 
     @ExceptionHandler(BusinessException.class)

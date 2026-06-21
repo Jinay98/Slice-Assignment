@@ -30,17 +30,6 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-/**
- * Unit tests for ItemServiceImpl.
- *
- * Uses Mockito to isolate the service from the real database.
- * No Spring context is loaded — these tests run FAST.
- *
- * Test structure: @Nested classes group tests by method (create/getById/update/delete).
- *
- * INTERVIEW TIP: Show this structure to demonstrate test organisation.
- * Nested tests give clear context when a specific test fails.
- */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ItemServiceImpl Unit Tests")
 class ItemServiceImplTest {
@@ -57,13 +46,14 @@ class ItemServiceImplTest {
     @BeforeEach
     void setUp() {
         sampleItem = Item.builder()
-                .id(1L)
                 .name("Laptop")
                 .description("High-performance laptop")
                 .price(BigDecimal.valueOf(1500.00))
                 .status(ItemStatus.ACTIVE)
-                .version(0L)
                 .build();
+        // Manually set inherited fields (SuperBuilder doesn't auto-set them in tests)
+        setId(sampleItem, 1L);
+        setVersion(sampleItem, 0L);
 
         createRequest = CreateItemRequest.builder()
                 .name("Laptop")
@@ -89,7 +79,6 @@ class ItemServiceImplTest {
             assertThat(result).isNotNull();
             assertThat(result.getName()).isEqualTo("Laptop");
             assertThat(result.getStatus()).isEqualTo(ItemStatus.ACTIVE);
-
             verify(itemRepository).existsByName("Laptop");
             verify(itemRepository).save(any(Item.class));
         }
@@ -161,9 +150,7 @@ class ItemServiceImplTest {
             Pageable pageable = PageRequest.of(0, 10);
             when(itemRepository.findAll(pageable)).thenReturn(Page.empty(pageable));
 
-            Page<ItemResponse> result = itemService.getAll(pageable);
-
-            assertThat(result.isEmpty()).isTrue();
+            assertThat(itemService.getAll(pageable).isEmpty()).isTrue();
         }
     }
 
@@ -184,19 +171,55 @@ class ItemServiceImplTest {
                     .build();
 
             Item updatedItem = Item.builder()
-                    .id(1L).name("Gaming Laptop")
+                    .name("Gaming Laptop")
                     .description("Updated description")
                     .price(BigDecimal.valueOf(2000.00))
-                    .status(ItemStatus.ACTIVE).version(1L)
+                    .status(ItemStatus.ACTIVE)
                     .build();
+            setId(updatedItem, 1L);
+            setVersion(updatedItem, 1L);
 
             when(itemRepository.findById(1L)).thenReturn(Optional.of(sampleItem));
+            when(itemRepository.existsByName("Gaming Laptop")).thenReturn(false);
             when(itemRepository.save(any(Item.class))).thenReturn(updatedItem);
 
             ItemResponse result = itemService.update(1L, updateRequest);
 
             assertThat(result.getName()).isEqualTo("Gaming Laptop");
             assertThat(result.getPrice()).isEqualByComparingTo(BigDecimal.valueOf(2000.00));
+        }
+
+        @Test
+        @DisplayName("should throw DuplicateResourceException when renaming to an existing name")
+        void shouldThrowDuplicateWhenRenamingToExistingName() {
+            UpdateItemRequest updateRequest = UpdateItemRequest.builder()
+                    .name("Existing Name")
+                    .build();
+
+            when(itemRepository.findById(1L)).thenReturn(Optional.of(sampleItem));
+            when(itemRepository.existsByName("Existing Name")).thenReturn(true);
+
+            assertThatThrownBy(() -> itemService.update(1L, updateRequest))
+                    .isInstanceOf(DuplicateResourceException.class)
+                    .hasMessageContaining("Existing Name");
+
+            verify(itemRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("should not check name uniqueness when name is unchanged")
+        void shouldSkipDuplicateCheckWhenNameUnchanged() {
+            UpdateItemRequest updateRequest = UpdateItemRequest.builder()
+                    .name("Laptop")   // same as sampleItem.name
+                    .price(BigDecimal.valueOf(2000.00))
+                    .build();
+
+            when(itemRepository.findById(1L)).thenReturn(Optional.of(sampleItem));
+            when(itemRepository.save(any(Item.class))).thenReturn(sampleItem);
+
+            itemService.update(1L, updateRequest);
+
+            verify(itemRepository, never()).existsByName(any());
         }
 
         @Test
@@ -235,6 +258,28 @@ class ItemServiceImplTest {
                     .isInstanceOf(ResourceNotFoundException.class);
 
             verify(itemRepository, never()).delete(any());
+        }
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────
+
+    private void setId(Item item, Long id) {
+        try {
+            var field = com.slice.model.BaseEntity.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(item, id);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void setVersion(Item item, Long version) {
+        try {
+            var field = com.slice.model.BaseEntity.class.getDeclaredField("version");
+            field.setAccessible(true);
+            field.set(item, version);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 }

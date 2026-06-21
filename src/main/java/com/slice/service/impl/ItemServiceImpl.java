@@ -19,18 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Concrete implementation of ItemService.
  *
- * ── Transaction Strategy ────────────────────────────────────────────────
- *  @Transactional        → class-level default (read + write)
- *  @Transactional(readOnly = true) → optimises SELECT queries
- *    (signals to Hibernate: don't track dirty state, don't flush on commit)
+ * Transaction strategy:
+ *   @Transactional        — class-level default (read + write)
+ *   @Transactional(readOnly=true) — SELECT-only; Hibernate skips dirty-check flush
  *
- * ── Concurrency ─────────────────────────────────────────────────────────
- *  The Item entity has @Version — if two threads read the same row and
- *  both try to update, JPA throws OptimisticLockException for the loser.
- *  Callers should catch this and retry or surface a 409 response.
- *
- * ── Mapping ─────────────────────────────────────────────────────────────
- *  toResponse() converts Entity → DTO. In a larger project, use MapStruct.
+ * Concurrency:
+ *   BaseEntity carries @Version — OptimisticLockException is raised for the
+ *   losing writer in concurrent update races. The GlobalExceptionHandler maps
+ *   this to HTTP 409 CONFLICT.
  */
 @Service
 @RequiredArgsConstructor
@@ -75,8 +71,7 @@ public class ItemServiceImpl implements ItemService {
     @Transactional(readOnly = true)
     public ItemResponse getById(Long id) {
         log.debug("Fetching item id={}", id);
-        Item item = findItemOrThrow(id);
-        return toResponse(item);
+        return toResponse(findItemOrThrow(id));
     }
 
     // ── UPDATE ──────────────────────────────────────────────────────────
@@ -86,10 +81,18 @@ public class ItemServiceImpl implements ItemService {
         log.info("Updating item id={}", id);
         Item item = findItemOrThrow(id);
 
-        item.setName(request.getName());
-        item.setDescription(request.getDescription());
-        item.setPrice(request.getPrice());
-
+        if (request.getName() != null && !request.getName().equals(item.getName())) {
+            if (itemRepository.existsByName(request.getName())) {
+                throw new DuplicateResourceException("Item", "name", request.getName());
+            }
+            item.setName(request.getName());
+        }
+        if (request.getDescription() != null) {
+            item.setDescription(request.getDescription());
+        }
+        if (request.getPrice() != null) {
+            item.setPrice(request.getPrice());
+        }
         if (request.getStatus() != null) {
             item.setStatus(request.getStatus());
         }
@@ -116,10 +119,6 @@ public class ItemServiceImpl implements ItemService {
                 .orElseThrow(() -> new ResourceNotFoundException("Item", "id", id));
     }
 
-    /**
-     * Maps a JPA entity to an API response DTO.
-     * INTERVIEW TIP: In production, replace manual mapping with MapStruct.
-     */
     private ItemResponse toResponse(Item item) {
         return ItemResponse.builder()
                 .id(item.getId())

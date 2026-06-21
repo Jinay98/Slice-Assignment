@@ -23,30 +23,20 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
  * Controller layer tests using @WebMvcTest.
  *
- * @WebMvcTest loads ONLY the web layer (controller + filters + exception handlers).
- * The service is mocked via @MockBean — no DB, no service logic.
+ * Loads ONLY the web layer (controller + exception handler).
+ * The service is mocked — no DB, no service logic.
  *
- * This tests:
- *  - HTTP method routing (POST/GET/PUT/DELETE)
- *  - Request body deserialization and validation
- *  - Response status codes
- *  - Response body shape (JSON path assertions)
- *  - Exception → HTTP status mapping
- *
- * INTERVIEW TIP: These run extremely fast (~200ms) because no Spring context
- * starts — perfect for demonstrating test discipline in 90 minutes.
+ * Covers: routing, request validation, response shape, exception → HTTP status mapping.
  */
 @WebMvcTest(controllers = {ItemController.class, GlobalExceptionHandler.class})
 @DisplayName("ItemController Web Layer Tests")
@@ -66,7 +56,7 @@ class ItemControllerTest {
     @BeforeEach
     void setUp() {
         sampleResponse = ItemResponse.builder()
-                .id(Long.valueOf(1L))
+                .id(1L)
                 .name("Laptop")
                 .description("High-performance laptop")
                 .price(BigDecimal.valueOf(1500.00))
@@ -94,10 +84,9 @@ class ItemControllerTest {
             mockMvc.perform(post("/api/v1/items")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
-                    .andDo(print())
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.status").value("SUCCESS"))
-                    .andExpect(jsonPath("$.data.id").value(Optional.of(1)))
+                    .andExpect(jsonPath("$.data.id").value(1))
                     .andExpect(jsonPath("$.data.name").value("Laptop"));
         }
 
@@ -105,7 +94,7 @@ class ItemControllerTest {
         @DisplayName("should return 400 when name is blank")
         void shouldReturn400WhenNameIsBlank() throws Exception {
             CreateItemRequest request = CreateItemRequest.builder()
-                    .name("")   // violates @NotBlank
+                    .name("")
                     .price(BigDecimal.valueOf(100.00))
                     .build();
 
@@ -114,7 +103,23 @@ class ItemControllerTest {
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.status").value("ERROR"))
-                    .andExpect(jsonPath("$.data.name").exists());  // field error present
+                    .andExpect(jsonPath("$.data.name").exists());
+        }
+
+        @Test
+        @DisplayName("should return 400 when price exceeds digit constraints")
+        void shouldReturn400WhenPriceHasTooManyDigits() throws Exception {
+            CreateItemRequest request = CreateItemRequest.builder()
+                    .name("Widget")
+                    .price(new BigDecimal("123456789.00"))   // 9 integer digits — exceeds limit
+                    .build();
+
+            mockMvc.perform(post("/api/v1/items")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status").value("ERROR"))
+                    .andExpect(jsonPath("$.data.price").exists());
         }
 
         @Test
@@ -153,7 +158,7 @@ class ItemControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.status").value("SUCCESS"))
                     .andExpect(jsonPath("$.data.content[0].name").value("Laptop"))
-                    .andExpect(jsonPath("$.data.totalElements").value(Optional.of(1)));
+                    .andExpect(jsonPath("$.data.totalElements").value(1));
         }
     }
 
@@ -166,18 +171,18 @@ class ItemControllerTest {
         @Test
         @DisplayName("should return 200 with item when found")
         void shouldReturn200WhenFound() throws Exception {
-            when(itemService.getById(Long.valueOf(1L))).thenReturn(sampleResponse);
+            when(itemService.getById(1L)).thenReturn(sampleResponse);
 
             mockMvc.perform(get("/api/v1/items/1"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.data.id").value(Optional.of(1)))
+                    .andExpect(jsonPath("$.data.id").value(1))
                     .andExpect(jsonPath("$.data.name").value("Laptop"));
         }
 
         @Test
         @DisplayName("should return 404 when item not found")
         void shouldReturn404WhenNotFound() throws Exception {
-            when(itemService.getById(Long.valueOf(99L)))
+            when(itemService.getById(99L))
                     .thenThrow(new ResourceNotFoundException("Item not found with id: 99"));
 
             mockMvc.perform(get("/api/v1/items/99"))
@@ -202,18 +207,36 @@ class ItemControllerTest {
                     .build();
 
             ItemResponse updated = ItemResponse.builder()
-                    .id(Long.valueOf(1L)).name("Gaming Laptop")
+                    .id(1L)
+                    .name("Gaming Laptop")
                     .price(BigDecimal.valueOf(2000.00))
                     .status(ItemStatus.ACTIVE)
                     .build();
 
-            when(itemService.update(Long.valueOf(eq(1L)), any(UpdateItemRequest.class))).thenReturn(updated);
+            when(itemService.update(eq(1L), any(UpdateItemRequest.class))).thenReturn(updated);
 
             mockMvc.perform(put("/api/v1/items/1")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.name").value("Gaming Laptop"));
+        }
+
+        @Test
+        @DisplayName("should return 404 when item to update not found")
+        void shouldReturn404WhenItemNotFound() throws Exception {
+            UpdateItemRequest request = UpdateItemRequest.builder()
+                    .name("Anything")
+                    .build();
+
+            when(itemService.update(eq(99L), any()))
+                    .thenThrow(new ResourceNotFoundException("Item not found with id: 99"));
+
+            mockMvc.perform(put("/api/v1/items/99")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.status").value("ERROR"));
         }
     }
 
@@ -226,7 +249,7 @@ class ItemControllerTest {
         @Test
         @DisplayName("should return 200 on successful delete")
         void shouldReturn200OnDelete() throws Exception {
-            doNothing().when(itemService).delete(Long.valueOf(1L));
+            doNothing().when(itemService).delete(1L);
 
             mockMvc.perform(delete("/api/v1/items/1"))
                     .andExpect(status().isOk())
@@ -237,7 +260,7 @@ class ItemControllerTest {
         @DisplayName("should return 404 when item to delete not found")
         void shouldReturn404WhenItemNotFound() throws Exception {
             doThrow(new ResourceNotFoundException("Item not found with id: 99"))
-                    .when(itemService).delete(Long.valueOf(99L));
+                    .when(itemService).delete(99L);
 
             mockMvc.perform(delete("/api/v1/items/99"))
                     .andExpect(status().isNotFound())
