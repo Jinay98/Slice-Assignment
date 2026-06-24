@@ -24,6 +24,71 @@ CREATE TABLE IF NOT EXISTS items (
     INDEX       idx_items_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS branches (
+    id          BIGINT       NOT NULL AUTO_INCREMENT,
+    name        VARCHAR(255) NOT NULL,
+    version     BIGINT       NOT NULL DEFAULT 0,
+    created_at  DATETIME(6),
+    updated_at  DATETIME(6),
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_branches_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS cars (
+    id          BIGINT      NOT NULL AUTO_INCREMENT,
+    branch_id   BIGINT      NOT NULL,
+    car_number  VARCHAR(50) NOT NULL,
+    car_type    VARCHAR(50) NOT NULL,
+    version     BIGINT      NOT NULL DEFAULT 0,
+    created_at  DATETIME(6),
+    updated_at  DATETIME(6),
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_cars_car_number (car_number),
+    INDEX idx_cars_type_branch (car_type, branch_id),
+    CONSTRAINT fk_cars_branch FOREIGN KEY (branch_id) REFERENCES branches(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS branch_prices (
+    id              BIGINT         NOT NULL AUTO_INCREMENT,
+    branch_id       BIGINT         NOT NULL,
+    car_type        VARCHAR(50)    NOT NULL,
+    price_per_hour  DECIMAL(12, 2) NOT NULL,
+    version         BIGINT         NOT NULL DEFAULT 0,
+    created_at      DATETIME(6),
+    updated_at      DATETIME(6),
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_branch_prices_branch_type (branch_id, car_type),
+    INDEX idx_branch_prices_type_price (car_type, price_per_hour),
+    CONSTRAINT fk_branch_prices_branch FOREIGN KEY (branch_id) REFERENCES branches(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS bookings (
+    id               BIGINT         NOT NULL AUTO_INCREMENT,
+    user_id          BIGINT         NOT NULL,
+    car_id           BIGINT         NOT NULL,
+    branch_id        BIGINT         NOT NULL,
+    car_type         VARCHAR(50)    NOT NULL,
+    start_time       DATETIME(6)    NOT NULL,
+    end_time         DATETIME(6)    NOT NULL,
+    price_per_hour   DECIMAL(12, 2) NOT NULL,
+    total_price      DECIMAL(12, 2) NOT NULL,
+    status           VARCHAR(50)    NOT NULL,
+    idempotency_key  VARCHAR(255)   NOT NULL,
+    version          BIGINT         NOT NULL DEFAULT 0,
+    created_at       DATETIME(6),
+    updated_at       DATETIME(6),
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_bookings_idempotency_key (idempotency_key),
+    INDEX idx_bookings_car_slot (car_id, status, start_time, end_time),
+    INDEX idx_bookings_user (user_id),
+    CONSTRAINT fk_bookings_car FOREIGN KEY (car_id) REFERENCES cars(id),
+    CONSTRAINT fk_bookings_branch FOREIGN KEY (branch_id) REFERENCES branches(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 -- ══════════════════════════════════════════════════════════════════════
 -- INTERVIEW EXTENSION AREA
